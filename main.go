@@ -15,31 +15,16 @@ import (
 	"time"
 )
 
-// var picTypes = map[string]bool{
-// 	"jpg":  true,
-// 	"jpeg": true,
-// 	"png":  true,
-// 	"gif":  true,
-// 	"bmp":  true,
-// }
-
-// var videoTypes = map[string]bool{
-// 	"mp4": true,
-// 	"mov": true,
-// 	"avi": true,
-// 	"wmv": true,
-// 	"mkv": true,
-// 	"rm":  true,
-// 	"f4v": true,
-// 	"flv": true,
-// 	"swf": true,
-// }
-
 // 实际中应该用更好的变量名
 var (
 	h = flag.Bool("h", false, "This `help`")
 	c = flag.Bool("c", false, "是拷贝还是移动文件.默认为移动文件.")
 	t = flag.Bool("t", false, "如果文件名中包含时间信息，是否根据该时间信息重置文件的修改时间.")
+
+	// 从文件名中取出日期格式字符串
+	regDate = regexp.MustCompile(`(20[0-2][0-9])[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})`)
+	// Medium
+	regMedium = regexp.MustCompile(`^\.(jpeg|jpg|png|bmp|gif|tiff|tif|pcx|svg|psd|raw|raf|heic|mp4|mov|mkv|rmvb|ts|avi)$`)
 )
 
 func info() {
@@ -83,40 +68,6 @@ func main() {
 	workPath(flag.Args()[0], flag.Args()[1]) // 运行主程序
 }
 
-// isVideoFileFix 检测文件后缀是否为视频格式
-// func isVideoFileFix(fix string) string {
-// 	if _, ok := videoTypes[fix]; ok {
-// 		return "videos"
-// 	}
-// 	return ""
-// }
-
-// // isPicFileFix 检测文件后缀是否为图片格式
-// func isPicFileFix(fix string) string {
-// 	if _, ok := picTypes[fix]; ok {
-// 		return "pictures"
-// 	}
-// 	return ""
-// }
-
-// // getAllFile 获取指定目录所有文件
-// func getAllFile(pathname string) ([]string, error) {
-// 	var s []string
-// 	rd, err := ioutil.ReadDir(pathname)
-// 	if err != nil {
-// 		fmt.Println("read dir fail:", err)
-// 		return s, err
-// 	}
-
-// 	for _, fi := range rd {
-// 		if !fi.IsDir() {
-// 			fullName := pathname + "/" + fi.Name()
-// 			s = append(s, fullName)
-// 		}
-// 	}
-// 	return s, nil
-// }
-
 func workPath(from, to string) {
 	// 遍历输入文件夹
 	err := filepath.Walk(from, func(srcFile string, info os.FileInfo, err error) error {
@@ -128,7 +79,8 @@ func workPath(from, to string) {
 			//return filepath.SkipDir // 忽略子目录
 			return nil
 		}
-		if !isPic(srcFile) && !isMov(srcFile) {
+		// if !isPic(srcFile) && !isMov(srcFile) {
+		if !isMedium(srcFile) {
 			fmt.Println("is not pic or movie, ignore it", srcFile)
 			return nil
 		}
@@ -176,6 +128,7 @@ func getPlacePath(tm time.Time) string {
 	// return filepath.Join(strconv.Itoa(tm.Year()), fmt.Sprintf("%02d", tm.Month()))
 }
 
+// 创建目录
 func createPath(destFile string) (err error) {
 	destDir := filepath.Dir(destFile)
 
@@ -188,37 +141,6 @@ func createPath(destFile string) (err error) {
 	}
 	return nil
 }
-
-// // meta
-// func modifyTime(fname string) time.Time {
-// 	var tm time.Time
-// 	var x *exif.Exif
-// 	f, err := os.Open(fname)
-// 	if err != nil {
-// 		return time.Now()
-// 	}
-
-// 	if isPic(fname) {
-// 		x, err = exif.Decode(f)
-// 		if err != nil {
-// 			goto UseFileTime
-// 		}
-// 		tm, _ = x.DateTime()
-// 		return tm
-// 	} else if isMov(fname) {
-// 		// TODO
-// 		return time.Now()
-// 	}
-
-// UseFileTime:
-// 	fi, err := f.Stat()
-// 	if err != nil {
-// 		return time.Now()
-// 	}
-
-// 	tm = fi.ModTime()
-// 	return tm
-// }
 
 // 根据文件的修改时间，获取文件将要存放的目录
 // dest: ./t 目标路径
@@ -235,15 +157,7 @@ func getDestAbsPath(dest string, src string) string {
 	return absPath
 }
 
-// func IsExist(path string) bool {
-// 	_, err := os.Stat(path)
-// 	return err == nil || os.IsExist(err)
-// 	// 或者
-// 	//return err == nil || !os.IsNotExist(err)
-// 	// 或者
-// 	//return !os.IsNotExist(err)
-// }
-
+// 拷贝文件
 func copyFile(src, des string) (written int64, err error) {
 	srcFile, err := os.Open(src)
 	if err != nil {
@@ -255,8 +169,7 @@ func copyFile(src, des string) (written int64, err error) {
 	fi, _ := srcFile.Stat()
 	perm := fi.Mode()
 
-	//desFile, err := os.Create(des)  //无法复制源文件的所有权限
-	desFile, err := os.OpenFile(des, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm) //复制源文件的所有权限
+	desFile, err := os.OpenFile(des, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm) // 复制源文件的所有权限
 	if err != nil {
 		return 0, err
 	}
@@ -265,43 +178,33 @@ func copyFile(src, des string) (written int64, err error) {
 	return io.Copy(desFile, srcFile)
 }
 
-func isPic(fname string) bool {
-	switch strings.ToLower(path.Ext(fname)) {
-	case ".jpeg", ".jpg", ".png", ".bmp", ".gif", ".tiff", ".tif", ".pcx", ".svg", ".psd", ".raw", ".raf", ".heic":
-		return true
-	default:
-		return false
-	}
+// 是否是媒体文件
+func isMedium(fileName string) bool {
+	return regMedium.MatchString(strings.ToLower(path.Ext(fileName)))
 }
 
-func isMov(fname string) bool {
-	switch strings.ToLower(path.Ext(fname)) {
-	case ".mp4", ".mov":
-		return true
-	default:
-		return false
-	}
-}
+// func isPic(name string) bool {
+// 	switch strings.ToLower(path.Ext(name)) {
+// 	case ".jpeg", ".jpg", ".png", ".bmp", ".gif", ".tiff", ".tif", ".pcx", ".svg", ".psd", ".raw", ".raf", ".heic":
+// 		return true
+// 	default:
+// 		return false
+// 	}
+// }
+
+// func isMov(name string) bool {
+// 	switch strings.ToLower(path.Ext(name)) {
+// 	case ".mp4", ".mov":
+// 		return true
+// 	default:
+// 		return false
+// 	}
+// }
 
 // Time 字符串 -> 时间
 func toTime(s string) (time.Time, error) {
 	return time.ParseInLocation("2006-01-02 15:04:05", s, time.Local)
 }
-
-// 时间戳 --> 日期字符串
-// func Timestring(sec int64) string {
-// 	return time.Unix(sec, 0).Format("2006-01-02 15:04:05")
-// }
-
-// func FileTime(file string) {
-// 	if fi, err := os.Stat(file); err == nil {
-// 		// tm := fi.ModTime()
-// 		stat := fi.Sys().(*syscall.Stat_t)
-// 		fmt.Printf("At:%s, Ct:%s, Mt:%s, Mt2:%s\n", Timestring(stat.Atimespec.Sec), Timestring(stat.Ctimespec.Sec), Timestring(stat.Mtimespec.Sec), fi.ModTime())
-// 	} else {
-// 		fmt.Println(err)
-// 	}
-// }
 
 // 获取文件的修改时间
 func getModifyTime(file string) time.Time {
@@ -314,10 +217,10 @@ func getModifyTime(file string) time.Time {
 // 如果文件名中包含时间信息，那么根据该时间信息重置文件的修改时间，设置正确的modifyTime
 func setModifyTime(srcFile string) {
 	// 从文件名中取出日期格式字符串
-	r := regexp.MustCompile(`(20[0-2][0-9])[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})`)
+	// r := regexp.MustCompile(`(20[0-2][0-9])[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})`)
 
-	fileName := filepath.Base(srcFile)       // 文件名
-	matchs := r.FindStringSubmatch(fileName) // 测试文件名是否包含日期信息
+	fileName := filepath.Base(srcFile)             // 文件名
+	matchs := regDate.FindStringSubmatch(fileName) // 测试文件名是否包含日期信息
 	if matchs != nil {
 		omt := getModifyTime(srcFile) // 老的信息
 
@@ -332,18 +235,3 @@ func setModifyTime(srcFile string) {
 		}
 	}
 }
-
-// func rename(from string, to string) {
-// 	err := filepath.Walk(from, func(srcFile string, info os.FileInfo, err error) error {
-// 		// FileTime(srcFile)
-
-// 		if *t {
-// 			setModifyTime(srcFile)
-// 		}
-// 		return nil
-// 	})
-
-// 	if err != nil {
-// 		log.Fatal("filepath.Walk failed; detail: ", err)
-// 	}
-// }

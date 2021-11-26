@@ -25,9 +25,8 @@ func Test_getPlacePath(t *testing.T) {
 	assert.Equal(t, getPlacePath(MustTime("2019-11-22 15:04:05")), "2019/11/2019-11-22")
 }
 
-func Test_rename(t *testing.T) {
-	// rename("./t2", "./a")
-	// rename("/Volumes/home/Photos/Mobile/iPhone", "./a")
-	// afp://OASSIS._afpovertcp._tcp.local/home/Photos/Mobile/iPhone
-	// rename("//James@OASSIS._afpovertcp._tcp.local/home/Photos/Mobile/iPhone", "./a")
+func Test_isMedium(t *testing.T) {
+	assert.True(t, isMedium("abc.jpg"))
+	assert.False(t, isMedium("abc.jpg2"))
+	assert.False(t, isMedium("abc.sjpg"))
 }
