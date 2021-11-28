@@ -24,7 +24,10 @@ var (
 	// 从文件名中取出日期格式字符串
 	regDate = regexp.MustCompile(`(20[0-2][0-9])[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})`)
 	// Medium
-	regMedium = regexp.MustCompile(`^\.(jpeg|jpg|png|bmp|gif|tiff|tif|pcx|svg|psd|raw|raf|heic|mp4|mov|mkv|rmvb|ts|avi)$`)
+	regMedium = regexp.MustCompile(`^\.(jpeg|jpg|png|bmp|gif|tiff|tif|pcx|svg|psd|raw|raf|heic|mp4|mov|mkv|rmvb|ts|avi|m4v)$`)
+
+	// .DS_Store @eaDir
+	regIgnore = regexp.MustCompile(`(\.DS_Store|@eaDir)`)
 )
 
 func info() {
@@ -80,8 +83,8 @@ func workPath(from, to string) {
 			return nil
 		}
 		// if !isPic(srcFile) && !isMov(srcFile) {
-		if !isMedium(srcFile) {
-			fmt.Println("is not pic or movie, ignore it", srcFile)
+		if !isMedium(srcFile) || regIgnore.MatchString(srcFile) {
+			// fmt.Println("is not pic or movie, ignore it", srcFile)
 			return nil
 		}
 
@@ -125,7 +128,6 @@ func workPath(from, to string) {
 // "2016-01-02 15:04:05" -> "2016/01/2016-01-02"
 func getPlacePath(tm time.Time) string {
 	return fmt.Sprintf("%d/%02d/%d-%02d-%02d", tm.Year(), tm.Month(), tm.Year(), tm.Month(), tm.Day())
-	// return filepath.Join(strconv.Itoa(tm.Year()), fmt.Sprintf("%02d", tm.Month()))
 }
 
 // 创建目录
@@ -144,12 +146,12 @@ func createPath(destFile string) (err error) {
 
 // 根据文件的修改时间，获取文件将要存放的目录
 // dest: ./t 目标路径
-// src: test/2019-06-13 181338.jpg 原文件
-func getDestAbsPath(dest string, src string) string {
-	mt := getModifyTime(src) // 文件修改日期
-	path := getPlacePath(mt) // 生成存放路径
+// srcFile: test/2019-06-13 181338.jpg 原文件
+func getDestAbsPath(dest string, srcFile string) string {
+	mt := getModifyTime(srcFile) // 文件修改日期
+	path := getPlacePath(mt)     // 生成存放路径
 
-	destPath := filepath.Join(dest, path, filepath.Base(src))
+	destPath := filepath.Join(dest, path, filepath.Base(srcFile))
 	absPath, _ := filepath.Abs(destPath)
 	if absPath == "" {
 		return destPath
@@ -183,24 +185,6 @@ func isMedium(fileName string) bool {
 	return regMedium.MatchString(strings.ToLower(path.Ext(fileName)))
 }
 
-// func isPic(name string) bool {
-// 	switch strings.ToLower(path.Ext(name)) {
-// 	case ".jpeg", ".jpg", ".png", ".bmp", ".gif", ".tiff", ".tif", ".pcx", ".svg", ".psd", ".raw", ".raf", ".heic":
-// 		return true
-// 	default:
-// 		return false
-// 	}
-// }
-
-// func isMov(name string) bool {
-// 	switch strings.ToLower(path.Ext(name)) {
-// 	case ".mp4", ".mov":
-// 		return true
-// 	default:
-// 		return false
-// 	}
-// }
-
 // Time 字符串 -> 时间
 func toTime(s string) (time.Time, error) {
 	return time.ParseInLocation("2006-01-02 15:04:05", s, time.Local)
@@ -216,9 +200,6 @@ func getModifyTime(file string) time.Time {
 
 // 如果文件名中包含时间信息，那么根据该时间信息重置文件的修改时间，设置正确的modifyTime
 func setModifyTime(srcFile string) {
-	// 从文件名中取出日期格式字符串
-	// r := regexp.MustCompile(`(20[0-2][0-9])[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})`)
-
 	fileName := filepath.Base(srcFile)             // 文件名
 	matchs := regDate.FindStringSubmatch(fileName) // 测试文件名是否包含日期信息
 	if matchs != nil {

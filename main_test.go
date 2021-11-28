@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -29,4 +30,13 @@ func Test_isMedium(t *testing.T) {
 	assert.True(t, isMedium("abc.jpg"))
 	assert.False(t, isMedium("abc.jpg2"))
 	assert.False(t, isMedium("abc.sjpg"))
+
+	//
+	regIgnore = regexp.MustCompile(`(\.DS_Store|@eaDir)`)
+	assert.True(t, regIgnore.MatchString("test/t1/.DS_Store"))
+	assert.False(t, regIgnore.MatchString("test/t1/DS_Store"))
+	assert.True(t, regIgnore.MatchString("test/t1/@eaDir"))
+	assert.True(t, regIgnore.MatchString("Mobile/GT-I9500/Camera/@eaDir/20120423_2.jpg/SYNOPHOTO_THUMB_M.jpg"))
+	assert.False(t, regIgnore.MatchString("test/t1/eaDir"))
+
 }
