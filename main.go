@@ -3,6 +3,8 @@ package main
 // https://blog.csdn.net/whatday/article/details/109287416
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -33,7 +35,7 @@ var (
 func info() {
 	log.Println(`
 
-根据文件的修改时间整理到对应的 ‘年/月/日期’ 目录下
+拷贝目录中的图像&视频文件到指定的目录下，并根据文件的修改时间，按年/月/日的方式整理到对应的目录下
 james70s@me.com
 
 ____________________________________O/_______
@@ -45,9 +47,9 @@ func usage() {
 	info()
 
 	fmt.Fprintf(os.Stderr, `
-Usage: main [-ht] [from] [to] 
+Usage: main [-hct] [from] [to] 
 
-Etc: main -t ./src ./test
+Etc: main -t /Volumes/Untitled\ 1/DCIM /Volumes/home/Photos/PhotoLibrary
 
 Options:
 `)
@@ -215,4 +217,9 @@ func setModifyTime(srcFile string) {
 			log.Fatal(err)
 		}
 	}
+}
+
+func MD5(s string) string {
+	sum := md5.Sum([]byte(s))
+	return hex.EncodeToString(sum[:])
 }
