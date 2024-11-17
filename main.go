@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/james70s/arrange/internal/gui"
 	"github.com/james70s/arrange/internal/ver"
-	"github.com/jroimartin/gocui"
 )
 
 // 编译的时候通过 -ldflags "-X main.Version=0.0.1 -X main.Build=7c033ce" 传入
@@ -60,44 +60,15 @@ func init() {
 
 func main() {
 
-	if *h || flag.NArg() != 2 { // 该应用的命令行参数必须要有2个
-		flag.Usage()
-		return
-	}
-	ver.Info()
+	// if *h || flag.NArg() != 2 { // 该应用的命令行参数必须要有2个
+	// 	flag.Usage()
+	// 	return
+	// }
+	// ver.Info()
 
 	// workPath(flag.Args()[0], flag.Args()[1]) // 运行主程序
 
-	// g, err := gocui.NewGui(gocui.OutputNormal)
-	// if err != nil {
-	// 	log.Panicln(err)
-	// }
-	// defer g.Close()
-
-	// g.SetManagerFunc(layout)
-
-	// if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
-	// 	log.Panicln(err)
-	// }
-
-	// if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
-	// 	log.Panicln(err)
-	// }
-}
-
-func layout(g *gocui.Gui) error {
-	maxX, maxY := g.Size()
-	if v, err := g.SetView("hello", maxX/2-7, maxY/2, maxX/2+7, maxY/2+2); err != nil {
-		if err != gocui.ErrUnknownView {
-			return err
-		}
-		fmt.Fprintln(v, "Hello world!")
-	}
-	return nil
-}
-
-func quit(g *gocui.Gui, v *gocui.View) error {
-	return gocui.ErrQuit
+	gui.Run()
 }
 
 func workPath(from, to string) {
