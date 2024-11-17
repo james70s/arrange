@@ -16,3 +16,4 @@
 test
 *.gz
 main
+test_data/.DS_Store
