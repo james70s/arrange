@@ -15,36 +15,30 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/james70s/arrange/internal/ver"
+	"github.com/jroimartin/gocui"
 )
+
+// 编译的时候通过 -ldflags "-X main.Version=0.0.1 -X main.Build=7c033ce" 传入
+var Version = "0.0.1"
+var Build = "7c033ce"
 
 // 实际中应该用更好的变量名
 var (
 	h = flag.Bool("h", false, "This `help`")
 	c = flag.Bool("c", false, "是拷贝还是移动文件.默认为移动文件.")
-	t = flag.Bool("t", false, "如果文件名中包含时间信息，是否根据该时间信息重置文件的修改时间.")
+	// t = flag.Bool("t", false, "如果文件名中包含时间信息，是否根据该时间信息重置文件的修改时间.")
 
 	// 从文件名中取出日期格式字符串
-	regDate = regexp.MustCompile(`(20[0-2][0-9])[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})`)
+	// regDate = regexp.MustCompile(`(20[0-2][0-9])[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})[-|_|\s]?([0-9]{2})`)
 	// Medium
 	regMedium = regexp.MustCompile(`^\.(jpeg|jpg|png|bmp|gif|tiff|tif|pcx|svg|psd|raw|raf|heic|mp4|mov|mkv|rmvb|ts|avi|m4v)$`)
-
-	// .DS_Store @eaDir
-	regIgnore = regexp.MustCompile(`(\.DS_Store|@eaDir)`)
+	regIgnore = regexp.MustCompile(`(\.DS_Store|@eaDir)`) // .DS_Store @eaDir
 )
 
-func info() {
-	log.Println(`
-
-拷贝目录中的图像&视频文件到指定的目录下，并根据文件的修改时间，按年/月/日的方式整理到对应的目录下
-james70s@me.com
-
-____________________________________O/_______
-                                    O\
-	`)
-}
-
 func usage() {
-	info()
+	ver.Info()
 
 	fmt.Fprintf(os.Stderr, `
 Usage: main [-hct] [from] [to] 
@@ -56,21 +50,54 @@ Options:
 	flag.PrintDefaults()
 }
 
-func main() {
+func init() {
+	ver.Build = Build
+	ver.Version = Version
+
 	flag.Usage = usage // 改变默认的 Usage
 	flag.Parse()       // 接受命令行参数
+}
+
+func main() {
 
 	if *h || flag.NArg() != 2 { // 该应用的命令行参数必须要有2个
 		flag.Usage()
 		return
 	}
-	info()
+	ver.Info()
 
-	// fmt.Println(flag.Args()) // 返回没有被解析的命令行参数
-	// fmt.Println(flag.NArg())          // 返回没有被解析的命令行参数的个数
-	// fmt.Println(flag.NFlag())         // 命令行设置的参数个数
+	// workPath(flag.Args()[0], flag.Args()[1]) // 运行主程序
 
-	workPath(flag.Args()[0], flag.Args()[1]) // 运行主程序
+	// g, err := gocui.NewGui(gocui.OutputNormal)
+	// if err != nil {
+	// 	log.Panicln(err)
+	// }
+	// defer g.Close()
+
+	// g.SetManagerFunc(layout)
+
+	// if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
+	// 	log.Panicln(err)
+	// }
+
+	// if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
+	// 	log.Panicln(err)
+	// }
+}
+
+func layout(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	if v, err := g.SetView("hello", maxX/2-7, maxY/2, maxX/2+7, maxY/2+2); err != nil {
+		if err != gocui.ErrUnknownView {
+			return err
+		}
+		fmt.Fprintln(v, "Hello world!")
+	}
+	return nil
+}
+
+func quit(g *gocui.Gui, v *gocui.View) error {
+	return gocui.ErrQuit
 }
 
 func workPath(from, to string) {
@@ -80,20 +107,17 @@ func workPath(from, to string) {
 			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", srcFile, err)
 			return err
 		}
-		if info.IsDir() {
-			//return filepath.SkipDir // 忽略子目录
+		if info.IsDir() { // 忽略子目录
 			return nil
 		}
-		// if !isPic(srcFile) && !isMov(srcFile) {
-		if !isMedium(srcFile) || regIgnore.MatchString(srcFile) {
-			// fmt.Println("is not pic or movie, ignore it", srcFile)
+		if !isMedium(srcFile) || regIgnore.MatchString(srcFile) { // is not pic or movie, ignore it
 			return nil
 		}
 
 		// 如果文件名中包含时间信息，是否根据该时间信息重置文件的修改时间
-		if *t {
-			setModifyTime(srcFile)
-		}
+		// if *t {
+		// 	setModifyTime(srcFile)
+		// }
 
 		// 目标文件,etc: /Users/James/app/tools/arrange/t/2019/06/2019-06-13/181338.jpg
 		destFile := getDestAbsPath(to, srcFile)
@@ -188,9 +212,9 @@ func isMedium(fileName string) bool {
 }
 
 // Time 字符串 -> 时间
-func toTime(s string) (time.Time, error) {
-	return time.ParseInLocation("2006-01-02 15:04:05", s, time.Local)
-}
+// func toTime(s string) (time.Time, error) {
+// 	return time.ParseInLocation("2006-01-02 15:04:05", s, time.Local)
+// }
 
 // 获取文件的修改时间
 func getModifyTime(file string) time.Time {
@@ -201,23 +225,23 @@ func getModifyTime(file string) time.Time {
 }
 
 // 如果文件名中包含时间信息，那么根据该时间信息重置文件的修改时间，设置正确的modifyTime
-func setModifyTime(srcFile string) {
-	fileName := filepath.Base(srcFile)             // 文件名
-	matchs := regDate.FindStringSubmatch(fileName) // 测试文件名是否包含日期信息
-	if matchs != nil {
-		omt := getModifyTime(srcFile) // 老的信息
+// func setModifyTime(srcFile string) {
+// 	fileName := filepath.Base(srcFile)             // 文件名
+// 	matchs := regDate.FindStringSubmatch(fileName) // 测试文件名是否包含日期信息
+// 	if matchs != nil {
+// 		omt := getModifyTime(srcFile) // 老的信息
 
-		date := fmt.Sprintf("%s-%s-%s %s:%s:%s", matchs[1], matchs[2], matchs[3], matchs[4], matchs[5], matchs[6])
-		mt, _ := toTime(date)
-		// fmt.Printf("%s %s %s\n", fileName, date, mt)
-		// 设置正确的modifyTime
-		if err := os.Chtimes(srcFile, time.Now(), mt); err == nil {
-			fmt.Printf("重设修改时间：%s %s -> %s\n", fileName, omt, mt)
-		} else {
-			log.Fatal(err)
-		}
-	}
-}
+// 		date := fmt.Sprintf("%s-%s-%s %s:%s:%s", matchs[1], matchs[2], matchs[3], matchs[4], matchs[5], matchs[6])
+// 		mt, _ := toTime(date)
+// 		// fmt.Printf("%s %s %s\n", fileName, date, mt)
+// 		// 设置正确的modifyTime
+// 		if err := os.Chtimes(srcFile, time.Now(), mt); err == nil {
+// 			fmt.Printf("重设修改时间：%s %s -> %s\n", fileName, omt, mt)
+// 		} else {
+// 			log.Fatal(err)
+// 		}
+// 	}
+// }
 
 func MD5(s string) string {
 	sum := md5.Sum([]byte(s))
