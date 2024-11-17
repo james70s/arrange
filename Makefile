@@ -28,7 +28,7 @@ binary: banner
 
 
 
-release:
+release: banner
 # Extract the current version number
 # Increment the version number
 # $(eval NEW_VERSION=$(shell echo $(VERSION) | python -c "version = input().split('.'); version[-1] = str(int(version[-1]) + 1); print('.'.join(version))"))
