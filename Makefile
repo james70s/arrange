@@ -27,6 +27,27 @@ binary: banner
 	@echo [*] Done building $(BINARY)
 
 
+
+release:
+# Extract the current version number
+# Increment the version number
+# $(eval NEW_VERSION=$(shell echo $(VERSION) | python -c "version = input().split('.'); version[-1] = str(int(version[-1]) + 1); print('.'.join(version))"))
+	$(eval NEW_VERSION=$(shell echo $(VERSION) | awk -F. '{printf "%d.%d.%d\n", $$1, $$2, $$3+1}'))
+# Replace the version number in pyproject.toml
+# sed -i '' 's/version = "$(VERSION)"/version = "$(NEW_VERSION)"/' ./services/$(service)/pyproject.toml
+# Tag the commit with the new version number
+	$(eval TAG=$(shell echo $(Name)/v$(NEW_VERSION)))
+	@echo "Bumping version to $(NEW_VERSION) and tagging as $(TAG)"
+# Commit the change and push to git
+# git add .
+	@if ! git diff-index --quiet HEAD --; then \
+        git add .; \
+		git commit -m "ci: Build $(Name) v$(NEW_VERSION)"; \
+	fi
+	git tag $(TAG)
+	git push origin HEAD $(TAG)
+	git remote -v
+
 # clean:
 # 	$(GOCLEAN)
 # 	$(RMTARGZ)
@@ -54,4 +75,4 @@ binary: banner
 # 	$(GOCLEAN)
 
 
-.PHONY: banner binary
+.PHONY: banner binary release
