@@ -22,7 +22,24 @@ var (
 	regIgnore = regexp.MustCompile(`(\.DS_Store|@eaDir)`) // .DS_Store @eaDir
 )
 
-func Copy(from, to string, c bool) error {
+type Info struct {
+	DirCount int // 目录总数
+	Total    int // 文件总数
+	Success  int // 拷贝成功数
+	Skip     int // 跳过文件数, 已经存在，MD5相同
+	Chrcksum int // 检查数, 文件已经存在，但MD5不同
+	Failure  int // 失败数
+}
+
+func XCopy(from, to string, c bool) error {
+	result := &Info{
+		DirCount: 0,
+		Total:    0,
+		Success:  0,
+		Skip:     0,
+		Chrcksum: 0,
+		Failure:  0,
+	}
 	// 遍历输入文件夹
 	err := filepath.Walk(from, func(srcFile string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -36,6 +53,7 @@ func Copy(from, to string, c bool) error {
 			return nil
 		}
 
+		result.Total++
 		// 如果文件名中包含时间信息，是否根据该时间信息重置文件的修改时间
 		// if *t {
 		// 	setModifyTime(srcFile)
@@ -43,31 +61,61 @@ func Copy(from, to string, c bool) error {
 
 		// 目标文件,etc: /Users/James/app/tools/arrange/t/2019/06/2019-06-13/181338.jpg
 		destFile := getDestAbsPath(to, srcFile)
-		if err = createPath(destFile); err != nil {
-			return nil
+		destDir := filepath.Dir(destFile)
+
+		if exists, _ := dirExists(destDir); !exists {
+			if err = os.MkdirAll(destDir, 0755); err != nil {
+				fmt.Printf("创建目录失败: %s. %s\n", destDir, err.Error())
+				return err
+			}
+			fmt.Println("创建目录: ", strings.TrimLeft(destDir, "./"))
+			result.DirCount++
+		}
+
+		srcMD5, _ := calculateMD5(srcFile) // 计算文件的MD5
+		if exists, _ := fileExists(destFile); exists {
+			destMD5, _ := calculateMD5(destFile) // 计算文件的MD5
+			if srcMD5 == destMD5 {
+				fmt.Printf("跳过文件: %s -> %s\n", srcFile, destFile)
+				result.Skip++
+				return nil
+			}
+			// 文件已经存在，但MD5不同, 说明是不同的文件，那么需要重命名
+			destFile = fmt.Sprintf("%s_%s%s", strings.TrimSuffix(destFile, path.Ext(destFile)), srcMD5, path.Ext(destFile))
 		}
 
 		// 拷贝文件
 		if c {
 			if _, err = copyFile(srcFile, destFile); err != nil {
 				fmt.Printf("拷贝文件失败：%s. %v\n", srcFile, err)
+				result.Failure++
 				return nil
 			}
 			fmt.Printf("拷贝文件: %s -> %s\n", srcFile, destFile)
-			// os.Remove(path)  // 删除源文件
 		} else { // 移动文件
 			if err = os.Rename(srcFile, destFile); err != nil {
 				fmt.Printf("移动文件失败: %s. %s\n", srcFile, err.Error())
+				result.Failure++
 				return nil
 			}
 			fmt.Printf("移动文件: %s -> %s\n", srcFile, destFile)
 		}
 
+		checkMD5, _ := calculateMD5(destFile) // 计算文件的MD5
+		if srcMD5 != checkMD5 {
+			fmt.Printf("MD5校验失败: %s %s -> %s\n", srcFile, srcMD5, checkMD5)
+			result.Chrcksum++
+			return nil
+		}
+
+		result.Success++
 		return nil
 	})
 	if err != nil {
-		log.Fatal("filepath.Walk failed; detail: ", err)
+		log.Fatal("xcopy failed: ", err)
 	}
+
+	fmt.Printf("目录总数: %d, 文件总数: %d, 成功数: %d, 跳过数: %d, 失败数: %d, MD5校验失败: %d\n", result.DirCount, result.Total, result.Success, result.Skip, result.Failure, result.Chrcksum)
 	return nil
 }
 
@@ -79,19 +127,48 @@ func getPlacePath(tm time.Time) string {
 	return fmt.Sprintf("%d/%02d/%d-%02d-%02d", tm.Year(), tm.Month(), tm.Year(), tm.Month(), tm.Day())
 }
 
-// 创建目录
-func createPath(destFile string) (err error) {
-	destDir := filepath.Dir(destFile)
-
-	if _, err = os.Stat(destDir); os.IsNotExist(err) {
-		if err = os.MkdirAll(destDir, 0755); err != nil {
-			fmt.Printf("创建目录失败: %s. %s\n", destDir, err.Error())
-			return err
-		}
-		fmt.Println("创建目录: ", strings.TrimLeft(destDir, "./"))
+func fileExists(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false, nil
 	}
-	return nil
+	if err != nil {
+		return false, err
+	}
+	return !info.IsDir(), nil
 }
+
+func dirExists(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return info.IsDir(), nil
+}
+
+// func mkdir(path string) error {
+// 	if err := os.MkdirAll(path, 0755); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
+
+// // 创建目录
+// func createPath(destFile string) (err error) {
+// 	destDir := filepath.Dir(destFile)
+
+// 	if _, err = os.Stat(destDir); os.IsNotExist(err) {
+// 		if err = os.MkdirAll(destDir, 0755); err != nil {
+// 			fmt.Printf("创建目录失败: %s. %s\n", destDir, err.Error())
+// 			return err
+// 		}
+// 		fmt.Println("创建目录: ", strings.TrimLeft(destDir, "./"))
+// 	}
+// 	return nil
+// }
 
 // 根据文件的修改时间，获取文件将要存放的目录
 // dest: ./t 目标路径
@@ -169,6 +246,21 @@ func getModifyTime(file string) time.Time {
 func MD5(s string) string {
 	sum := md5.Sum([]byte(s))
 	return hex.EncodeToString(sum[:])
+}
+
+func calculateMD5(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash := md5.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
 // func Volumes() {

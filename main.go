@@ -51,7 +51,7 @@ func main() {
 	}
 	ver.Info()
 
-	cp.Copy(flag.Args()[0], flag.Args()[1], *c)
+	cp.XCopy(flag.Args()[0], flag.Args()[1], *c)
 	// Volumes()
 	// gui.Run()
 	// form.Setup()
