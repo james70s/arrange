@@ -2,7 +2,7 @@
 # export GOOS=linux
 # export GOARCH=amd64
 
-Name=kaoca	# 项目名称
+Name=kaoca# 项目名称
 BINARY=main # 编译出来的文件名
 VERSION=$(shell git describe --abbrev=0 --tags 2> /dev/null | sed 's/kaoca\/v//')  # 版本号 该命令查找从提交可访问的最新标记。
 BUILD=$(shell git rev-parse --short HEAD 2> /dev/null || echo "undefined")  # build=ea74c49
