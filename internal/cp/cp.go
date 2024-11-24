@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,6 +28,8 @@ type Info struct {
 	Skip     int // 跳过文件数, 已经存在，MD5相同
 	Chrcksum int // 检查数, 文件已经存在，但MD5不同
 	Failure  int // 失败数
+	Ignored  int // 忽略数
+	Errors   []error
 }
 
 func XCopy(from, to string, c bool) error {
@@ -44,16 +45,21 @@ func XCopy(from, to string, c bool) error {
 	err := filepath.Walk(from, func(srcFile string, info os.FileInfo, err error) error {
 		if err != nil {
 			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", srcFile, err)
-			return err
+			result.Errors = append(result.Errors, err)
+			return nil
 		}
 		if info.IsDir() { // 忽略子目录
 			return nil
 		}
+
+		// 所有文件
+		result.Total++
+
 		if !isMedium(srcFile) || regIgnore.MatchString(srcFile) { // is not pic or movie, ignore it
+			result.Ignored++
 			return nil
 		}
 
-		result.Total++
 		// 如果文件名中包含时间信息，是否根据该时间信息重置文件的修改时间
 		// if *t {
 		// 	setModifyTime(srcFile)
@@ -66,7 +72,9 @@ func XCopy(from, to string, c bool) error {
 		if exists, _ := dirExists(destDir); !exists {
 			if err = os.MkdirAll(destDir, 0755); err != nil {
 				fmt.Printf("创建目录失败: %s. %s\n", destDir, err.Error())
-				return err
+				result.Errors = append(result.Errors, err)
+				result.Skip++
+				return nil
 			}
 			fmt.Println("创建目录: ", strings.TrimLeft(destDir, "./"))
 			result.DirCount++
@@ -88,6 +96,7 @@ func XCopy(from, to string, c bool) error {
 		if c {
 			if _, err = copyFile(srcFile, destFile); err != nil {
 				fmt.Printf("拷贝文件失败：%s. %v\n", srcFile, err)
+				result.Errors = append(result.Errors, err)
 				result.Failure++
 				return nil
 			}
@@ -95,6 +104,7 @@ func XCopy(from, to string, c bool) error {
 		} else { // 移动文件
 			if err = os.Rename(srcFile, destFile); err != nil {
 				fmt.Printf("移动文件失败: %s. %s\n", srcFile, err.Error())
+				result.Errors = append(result.Errors, err)
 				result.Failure++
 				return nil
 			}
@@ -112,10 +122,16 @@ func XCopy(from, to string, c bool) error {
 		return nil
 	})
 	if err != nil {
-		log.Fatal("xcopy failed: ", err)
+		// log.Fatal("xcopy failed: ", err)
+		fmt.Println("xcopy failed: ", err)
 	}
 
-	fmt.Printf("目录总数: %d, 文件总数: %d, 成功数: %d, 跳过数: %d, 失败数: %d, MD5校验失败: %d\n", result.DirCount, result.Total, result.Success, result.Skip, result.Failure, result.Chrcksum)
+	fmt.Printf("目录总数: %d, 文件总数: %d, 成功数: %d, 跳过数: %d, 失败数: %d, 忽略数: %d, MD5校验失败: %d\n", result.DirCount, result.Total, result.Success, result.Skip, result.Failure, result.Ignored, result.Chrcksum)
+	if len(result.Errors) > 0 {
+		for _, err := range result.Errors {
+			fmt.Println(err)
+		}
+	}
 	return nil
 }
 
