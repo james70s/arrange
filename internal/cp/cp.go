@@ -36,10 +36,12 @@ type Channels struct {
 }
 
 func XCopy(from, to string, c bool) error {
+	startTime := time.Now() // 记录开始时间
+
 	result := &Info{}
 	channels := &Channels{
 		FileChan: make(chan string),
-		ErrChan:  make(chan error),
+		ErrChan:  make(chan error, 10), // 增加缓冲区以防止阻塞
 		DoneChan: make(chan struct{}),
 		MD5Chan:  make(chan string),
 	}
@@ -85,6 +87,18 @@ func XCopy(from, to string, c bool) error {
 		result.Errors = append(result.Errors, err)
 	}
 
+	endTime := time.Now()                 // 记录结束时间
+	elapsedTime := endTime.Sub(startTime) // 计算总共耗时
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		fmt.Println("加载时区失败:", err)
+		return err
+	}
+	startTimeInBeijing := startTime.In(location)
+	endTimeInBeijing := endTime.In(location)
+
+	fmt.Printf("\n✨ 拷贝完成 开始时间: %s 结束时间: %s 总共耗时: %s\n", startTimeInBeijing.Format("2006-01-02 15:04:05"), endTimeInBeijing.Format("2006-01-02 15:04:05"), elapsedTime)
+
 	printSummary(result)
 	return nil
 }
@@ -114,6 +128,9 @@ func processFile(srcFile, to string, c bool, result *Info, md5Chan chan<- string
 		srcMD5, _ := calculateMD5(srcFile)
 		destMD5, _ := calculateMD5(destFile)
 		if srcMD5 == destMD5 {
+			if err := modificationTime(srcFile, destFile); err != nil {
+				fmt.Println(err)
+			}
 			fmt.Printf("跳过文件: %s -> %s\n", srcFile, destFile)
 			result.Skip++
 			return nil
@@ -161,10 +178,10 @@ func handleError(err error, result *Info) error {
 }
 
 func printSummary(result *Info) {
-	fmt.Printf("目录总数: %d, 文件总数: %d, 成功数: %d, 跳过数: %d, 失败数: %d, 忽略数: %d, MD5校验失败: %d\n", result.DirCount, result.Total, result.Success, result.Skip, result.Failure, result.Ignored, result.Chrcksum)
+	fmt.Printf("目录总数: %d, 文件总数: %d, 成功: %d, 跳过: %d, 失败: %d, 忽略: %d, MD5校验失败: %d\n", result.DirCount, result.Total, result.Success, result.Skip, result.Failure, result.Ignored, result.Chrcksum)
 	if len(result.Errors) > 0 {
 		for _, err := range result.Errors {
-			fmt.Println(err)
+			fmt.Printf("%v\n", err)
 		}
 	}
 }
@@ -223,7 +240,30 @@ func copyFile(src, des string) (written int64, err error) {
 	}
 	defer desFile.Close()
 
-	return io.Copy(desFile, srcFile)
+	written, err = io.Copy(desFile, srcFile)
+	if err != nil {
+		return 0, err
+	}
+
+	// Preserve the modification and access times
+	modTime := fi.ModTime()
+	err = os.Chtimes(des, modTime, modTime)
+	if err != nil {
+		return 0, err
+	}
+
+	return written, nil
+}
+
+func modificationTime(src, des string) error {
+	srcT := getModifyTime(src)
+	desT := getModifyTime(des)
+	if srcT.Equal(desT) {
+		return nil
+	}
+
+	fmt.Printf("修改时间: %s -> %s\n", des, srcT)
+	return os.Chtimes(des, srcT, srcT)
 }
 
 func isMedium(fileName string) bool {
