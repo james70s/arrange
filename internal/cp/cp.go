@@ -28,16 +28,28 @@ type Info struct {
 	Errors   []error
 }
 
+type Channels struct {
+	FileChan chan string
+	ErrChan  chan error
+	DoneChan chan struct{}
+	MD5Chan  chan string
+}
+
 func XCopy(from, to string, c bool) error {
 	result := &Info{}
-	fileChan := make(chan string)
-	errChan := make(chan error)
-	doneChan := make(chan struct{})
+	channels := &Channels{
+		FileChan: make(chan string),
+		ErrChan:  make(chan error),
+		DoneChan: make(chan struct{}),
+		MD5Chan:  make(chan string),
+	}
 
 	numWorkers := 10
 	for i := 0; i < numWorkers; i++ {
-		go worker(fileChan, errChan, doneChan, to, c, result)
+		go worker(channels, to, c, result)
 	}
+
+	go md5Verifier(channels, result)
 
 	err := filepath.Walk(from, func(srcFile string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -54,21 +66,22 @@ func XCopy(from, to string, c bool) error {
 			return nil
 		}
 
-		fileChan <- srcFile
+		channels.FileChan <- srcFile
 		return nil
 	})
-	close(fileChan)
+	close(channels.FileChan)
 
 	if err != nil {
 		fmt.Println("xcopy failed: ", err)
 	}
 
 	for i := 0; i < numWorkers; i++ {
-		<-doneChan
+		<-channels.DoneChan
 	}
 
-	close(errChan)
-	for err := range errChan {
+	close(channels.MD5Chan)
+	close(channels.ErrChan)
+	for err := range channels.ErrChan {
 		result.Errors = append(result.Errors, err)
 	}
 
@@ -76,16 +89,16 @@ func XCopy(from, to string, c bool) error {
 	return nil
 }
 
-func worker(fileChan <-chan string, errChan chan<- error, doneChan chan<- struct{}, to string, c bool, result *Info) {
-	for srcFile := range fileChan {
-		if err := processFile(srcFile, to, c, result); err != nil {
-			errChan <- err
+func worker(channels *Channels, to string, c bool, result *Info) {
+	for srcFile := range channels.FileChan {
+		if err := processFile(srcFile, to, c, result, channels.MD5Chan); err != nil {
+			channels.ErrChan <- err
 		}
 	}
-	doneChan <- struct{}{}
+	channels.DoneChan <- struct{}{}
 }
 
-func processFile(srcFile, to string, c bool, result *Info) error {
+func processFile(srcFile, to string, c bool, result *Info, md5Chan chan<- string) error {
 	destFile := getDestAbsPath(to, srcFile)
 	destDir := filepath.Dir(destFile)
 
@@ -97,8 +110,8 @@ func processFile(srcFile, to string, c bool, result *Info) error {
 		result.DirCount++
 	}
 
-	srcMD5, _ := calculateMD5(srcFile)
 	if exists, _ := fileExists(destFile); exists {
+		srcMD5, _ := calculateMD5(srcFile)
 		destMD5, _ := calculateMD5(destFile)
 		if srcMD5 == destMD5 {
 			fmt.Printf("跳过文件: %s -> %s\n", srcFile, destFile)
@@ -120,15 +133,24 @@ func processFile(srcFile, to string, c bool, result *Info) error {
 		fmt.Printf("移动文件: %s -> %s\n", srcFile, destFile)
 	}
 
-	checkMD5, _ := calculateMD5(destFile)
-	if srcMD5 != checkMD5 {
-		fmt.Printf("MD5校验失败: %s %s -> %s\n", srcFile, srcMD5, checkMD5)
-		result.Chrcksum++
-		return nil
-	}
-
+	md5Chan <- fmt.Sprintf("%s|%s", srcFile, destFile)
 	result.Success++
 	return nil
+}
+
+func md5Verifier(channels *Channels, result *Info) {
+	for files := range channels.MD5Chan {
+		parts := strings.Split(files, "|")
+		srcFile, destFile := parts[0], parts[1]
+
+		srcMD5, _ := calculateMD5(srcFile)
+		destMD5, _ := calculateMD5(destFile)
+		if srcMD5 != destMD5 {
+			fmt.Printf("MD5校验失败: %s %s -> %s\n", srcFile, srcMD5, destMD5)
+			result.Chrcksum++
+			channels.ErrChan <- fmt.Errorf("MD5校验失败: %s %s -> %s", srcFile, srcMD5, destMD5)
+		}
+	}
 }
 
 func handleError(err error, result *Info) error {
