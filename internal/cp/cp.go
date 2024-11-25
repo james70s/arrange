@@ -125,6 +125,11 @@ func processFile(srcFile, to string, c bool, result *Info, md5Chan chan<- string
 	}
 
 	if exists, _ := fileExists(destFile); exists {
+		// if err := modificationTime(srcFile, destFile); err != nil {
+		// 	fmt.Println(err)
+		// }
+		// return nil
+
 		srcMD5, _ := calculateMD5(srcFile)
 		destMD5, _ := calculateMD5(destFile)
 		if srcMD5 == destMD5 {

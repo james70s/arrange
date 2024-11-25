@@ -17,8 +17,9 @@ var Build = "7c033ce"
 
 // 实际中应该用更好的变量名
 var (
-	h = flag.Bool("h", false, "This `help`")
-	c = flag.Bool("c", true, "是拷贝还是移动文件, 默认为拷贝文件.")
+	h     = flag.Bool("h", false, "This `help`")
+	c     = flag.Bool("c", true, "是拷贝还是移动文件, 默认为拷贝文件.")
+	check = flag.Bool("check", false, "检查文件的修改时间是否与目录名中的时间是同一天.")
 	// t = flag.Bool("t", false, "如果文件名中包含时间信息，是否根据该时间信息重置文件的修改时间.")
 )
 
@@ -45,12 +46,16 @@ func init() {
 
 func main() {
 
-	if *h || flag.NArg() != 2 { // 该应用的命令行参数必须要有2个
+	if *h { // 该应用的命令行参数必须要有2个
 		flag.Usage()
 		return
 	}
 	ver.Info()
 
+	if *check {
+		cp.CheckModificationTimes(flag.Args()[0])
+		return
+	}
 	cp.XCopy(flag.Args()[0], flag.Args()[1], *c)
 	// Volumes()
 	// gui.Run()
