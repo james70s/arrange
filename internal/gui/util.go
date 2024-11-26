@@ -6,7 +6,7 @@ func Quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
 }
 
-// FocusStatusView pus the status window ontop
+// FocusStatusView puts the status window on top
 func FocusStatusView(g *gocui.Gui, v *gocui.View) error {
 
 	v.Autoscroll = true

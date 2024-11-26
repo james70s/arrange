@@ -118,6 +118,9 @@ func processFile(srcFile, to string, c bool, result *Info, md5Chan chan<- string
 
 	if exists, _ := dirExists(destDir); !exists {
 		if err := os.MkdirAll(destDir, 0755); err != nil {
+			if os.IsPermission(err) {
+				return handleError(fmt.Errorf("权限不足，无法创建目录: %s. %s", destDir, err.Error()), result)
+			}
 			return handleError(fmt.Errorf("创建目录失败: %s. %s", destDir, err.Error()), result)
 		}
 		fmt.Println("创建目录: ", strings.TrimLeft(destDir, "./"))
